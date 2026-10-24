@@ -20,10 +20,16 @@ function App() {
     loadPosts();
   }, []);
 
+  const { posts, loading, error } = state;
+
   return (
     <div className="app">
       <h1>Post Dashboard</h1>
-      <PostList posts={state.posts} />
+
+      {loading && <p>Loading posts...</p>}
+      {error && <p role="alert">Error: {error}</p>}
+      {!loading && !error && posts.length === 0 && <p>No posts found.</p>}
+      {!loading && !error && posts.length > 0 && <PostList posts={posts} />}
     </div>
   );
 }
