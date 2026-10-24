@@ -1,37 +1,42 @@
 # Assignment 6 – Post Dashboard
 
-A small React (Vite) app that loads posts from
-`https://jsonplaceholder.typicode.com/posts`, shows loading / error / empty
-states, and lets the user filter posts by title.
+A React app built with Vite that fetches posts from JSONPlaceholder, shows loading, error and empty states, and filters posts by title.
 
-## Run
 
-```bash
-npm install
-npm run dev
-```
-
-## File organization
+## File Organization
 
 ```
 src/
-├─ api/postsApi.js         # fetchPosts(): only fetch logic, no JSX, no React
-├─ reducer/postsReducer.js # pure reducer: FETCH_START / FETCH_SUCCESS / FETCH_ERROR
-├─ components/
-│  ├─ Post.jsx             # presentational: renders title and body
-│  ├─ PostList.jsx         # pure list: maps posts to <Post /> with key={post.id}
-│  └─ FilterForm.jsx       # controlled input for the title filter
-├─ App.jsx                 # owns useReducer, useEffect fetch, filter state
-└─ main.jsx                # entry point
+├── api/
+│   └── postsApi.js       # fetchPosts(): data fetching only, no React or JSX
+├── components/
+│   ├── Post.jsx          # Shows a single post (title + body), no state
+│   ├── PostList.jsx      # Maps posts to <Post /> using post.id as key
+│   └── FilterForm.jsx    # Controlled input for filtering by title
+├── reducer/
+│   └── postsReducer.js   # Pure reducer: FETCH_START / FETCH_SUCCESS / FETCH_ERROR
+├── App.jsx               # Owns state, fetches on mount, derives filtered posts
+└── main.jsx              # Entry point
 ```
 
-- `App` owns the async state (`useReducer`) and the filter text (`useState`).
-- The fetch happens in a single `useEffect` on mount; the UI components never fetch.
-- The filtered list is **derived during render** from `posts` + `filter`; it is never stored in state or computed in an effect.
+- **API layer** only knows how to get data. It doesn't know anything about React.
+- **Reducer** only describes how state changes. It has no async code or side effects.
+- **App** connects everything: it runs the fetch in `useEffect`, dispatches actions and passes data down.
+- **Components** only render the props they receive.
 
-## Challenges I faced
+## Challenges
 
-- **Cleanup / memory leaks:** the effect creates an `AbortController` and aborts it on cleanup. An aborted request throws `AbortError`, which I ignore so it is not shown as a user-facing error. This also behaves correctly under React StrictMode, which runs effects twice in development.
-- **HTTP errors:** `fetch` does not reject on 404/500, so `fetchPosts` checks `response.ok` and throws manually so that the `try/catch` in `App` can dispatch `FETCH_ERROR`.
-- **Derived state:** it was tempting to store filtered posts in state, but this creates duplicated data that can go out of sync. Filtering during render keeps a single source of truth.
-- **Keeping the reducer pure:** all async work lives in `App`'s effect; the reducer only returns new state objects.
+**1. `fetch` doesn't throw on HTTP errors.**
+At first I expected a 404 to go straight to the `catch` block, but `fetch` only rejects on network failures. I added a `response.ok` check in `postsApi.js` to throw an error myself. I tested it by changing the URL to a wrong one and saw the error message on screen without the app crashing.
+
+**2. Posts were fetched twice.**
+In the Network tab I saw two requests to `/posts`. This happens because `StrictMode` runs effects twice in development. I added an `AbortController` and returned `controller.abort()` as the cleanup function, so the first request gets cancelled. Cancelled requests throw an `AbortError`, so I ignore that case instead of showing it as an error.
+
+**3. Not storing filtered posts in state.**
+My first idea was to keep a `filteredPosts` state and update it in a `useEffect`. But this would copy data that can already be calculated from `posts` and `filter`, and the two could get out of sync. Instead I calculate `filteredPosts` during render, so only the source data is stored.
+
+**4. Two different "empty" situations.**
+"The API returned no posts" and "no posts match the filter" are different situations, so I show a different message for each one.
+
+**5. Building the project step by step.**
+I built `App.jsx` in stages (fetching → UI states → cleanup → filtering) and committed after each stage, so the commit history shows how the app grew.
